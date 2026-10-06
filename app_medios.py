@@ -67,13 +67,17 @@ def resolver(df, presupuesto, tipo, max_unidades):
         solver = pulp.PULP_CBC_CMD(msg=False)
     else:  # PuLP 4.x
         solver = pulp.COIN_CMD(msg=False)
-    prob.solve(solver)
+    stats = prob.solve(solver)
+    if hasattr(stats, "status_str"):  # PuLP 4.x
+        estado = stats.status_str
+    else:  # PuLP 3.x
+        estado = pulp.LpStatus[prob.status]
 
     res = df.copy()
     res["Cantidad"] = [v.value() if v.value() is not None else 0 for v in x]
     res["Costo total"] = res["Cantidad"] * res["Costo"]
     res["Impacto total"] = res["Cantidad"] * res["Impacto"]
-    return prob, res, pulp.LpStatus[prob.status]
+    return prob, res, estado
 
 
 if st.button("🚀 Resolver", type="primary"):
@@ -93,11 +97,11 @@ if st.button("🚀 Resolver", type="primary"):
         st.error("Agrega al menos un medio con datos válidos.")
     else:
         st.subheader("Resultado")
-        if estado != "Optimal":
+        if str(estado).lower() != "optimal":
             st.error(f"Estado del solver: {estado}")
         else:
             c1, c2, c3 = st.columns(3)
-            c1.metric("Impacto total", f"{pulp.value(prob.objective):,.2f}")
+            c1.metric("Impacto total", f"{res['Impacto total'].sum():,.2f}")
             c2.metric("Costo utilizado", f"{res['Costo total'].sum():,.2f}")
             c3.metric("Presupuesto sobrante", f"{presupuesto - res['Costo total'].sum():,.2f}")
 
